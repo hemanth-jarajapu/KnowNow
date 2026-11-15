@@ -13,7 +13,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 
-private val Context.dataStore by preferencesDataStore(name = "knownow_settings")
+private val Context.settingsDataStore by preferencesDataStore(name = "knownow_settings")
 
 object ServiceLocator {
     private lateinit var appContext: Context
@@ -49,10 +49,11 @@ object ServiceLocator {
     }
 
     val context: Context get() = appContext
+    val dataStore get() = appContext.settingsDataStore
 
     suspend fun allowMeteredDownloads(): Boolean {
         val key = stringPreferencesKey("allow_metered_downloads")
-        return appContext.dataStore.data.first()[key] == "true"
+        return dataStore.data.first()[key] == "true"
     }
 
     fun init(context: Context) {

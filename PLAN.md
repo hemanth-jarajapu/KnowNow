@@ -35,7 +35,7 @@ Both are solvable (see §6 and §7).
 
 1. **Choose a release** (branch) and a **topic** (publication) from the repo.
 2. **Download** that topic’s documentation to the device, with progress.
-3. **Read** it offline with beautiful, fast markdown rendering.
+3. **Read** it offline with fast markdown rendering.
 4. **Navigate** from one topic item to the next (prev/next in TOC order, plus a
    document outline and the publication tree).
 5. **Search** across everything downloaded.

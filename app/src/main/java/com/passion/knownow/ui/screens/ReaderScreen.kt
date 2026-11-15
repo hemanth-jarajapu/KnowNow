@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Highlight
@@ -35,12 +36,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import android.speech.tts.TextToSpeech
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -102,6 +106,11 @@ fun ReaderScreen(documentId: Long, onBackClick: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text(doc?.title ?: "Reader") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 actions = {
                     IconButton(onClick = {
                         if (isBookmarkedState.value) {
@@ -123,7 +132,7 @@ fun ReaderScreen(documentId: Long, onBackClick: () -> Unit) {
                     }
                     doc?.canonicalUrl?.let { url ->
                         IconButton(onClick = {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
                             context.startActivity(intent)
                         }) {
                             Icon(Icons.Filled.OpenInNew, contentDescription = "Open on ServiceNow docs")
@@ -140,14 +149,15 @@ fun ReaderScreen(documentId: Long, onBackClick: () -> Unit) {
     ) { padding ->
         val segments = HtmlTableParser.splitSegments(content)
         val density = LocalDensity.current
+        val bg = if (sepia) Color(0xFFF4ECD8) else MaterialTheme.colorScheme.background
         CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().background(bg).padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-            items(segments, key = { it.hashCode() }) { seg ->
-                when (seg) {
+            items(segments.size, key = { i -> "${segments[i]::class.simpleName}_$i" }) { i ->
+                when (val seg = segments[i]) {
                     is Segment.Text -> Markdown(content = seg.content)
                     is Segment.Table -> AdaptiveTable(seg.model)
                 }
@@ -180,14 +190,16 @@ fun ReaderScreen(documentId: Long, onBackClick: () -> Unit) {
                 TextButton(onClick = {
                     if (noteText.isNotBlank()) {
                         scope.launch {
+                            val currentDoc = doc
+                            val pub = currentDoc?.publicationId?.let { ServiceLocator.database.publicationDao().getById(it) }
                             ServiceLocator.database.noteDao().upsert(
                                 com.passion.knownow.data.db.NoteEntity(
                                     documentId = documentId,
-                                    publicationId = doc?.publicationId ?: 0L,
-                                    releaseName = doc?.let { null } ?: "",
-                                    documentTitleSnapshot = doc?.title ?: "Untitled",
-                                    publicationTitleSnapshot = "",
-                                    canonicalUrl = doc?.canonicalUrl,
+                                    publicationId = currentDoc?.publicationId ?: 0L,
+                                    releaseName = pub?.releaseName ?: "",
+                                    documentTitleSnapshot = currentDoc?.title ?: "Untitled",
+                                    publicationTitleSnapshot = pub?.title ?: "",
+                                    canonicalUrl = currentDoc?.canonicalUrl,
                                     content = noteText,
                                     tags = noteTags,
                                 )

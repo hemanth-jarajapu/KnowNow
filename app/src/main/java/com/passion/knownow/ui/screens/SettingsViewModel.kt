@@ -1,12 +1,11 @@
 package com.passion.knownow.ui.screens
 
 import android.app.Application
-import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.passion.knownow.data.ServiceLocator
 import com.passion.knownow.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,10 +15,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-private val Context.dataStore by preferencesDataStore(name = "knownow_settings")
-
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
-    private val context = app.applicationContext
+    private val dataStore get() = ServiceLocator.dataStore
     private val themeKey = stringPreferencesKey("theme_mode")
     private val tokenKey = stringPreferencesKey("github_token")
     private val fontScaleKey = stringPreferencesKey("font_scale")
@@ -31,29 +28,29 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
-    val gitHubToken: StateFlow<String> = context.dataStore.data
+    val gitHubToken: StateFlow<String> = dataStore.data
         .map { it[tokenKey].orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    val fontScale: StateFlow<Float> = context.dataStore.data
+    val fontScale: StateFlow<Float> = dataStore.data
         .map { it[fontScaleKey]?.toFloatOrNull() ?: 1f }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
 
-    val sepia: StateFlow<Boolean> = context.dataStore.data
+    val sepia: StateFlow<Boolean> = dataStore.data
         .map { it[sepiaKey] == "true" }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val readingStreak: StateFlow<Int> = context.dataStore.data
+    val readingStreak: StateFlow<Int> = dataStore.data
         .map { it[streakKey]?.toIntOrNull() ?: 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val allowMeteredDownloads: StateFlow<Boolean> = context.dataStore.data
+    val allowMeteredDownloads: StateFlow<Boolean> = dataStore.data
         .map { it[meteredKey] == "true" }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     init {
         viewModelScope.launch {
-            context.dataStore.data.map { it[themeKey] }.collect { value ->
+            dataStore.data.map { it[themeKey] }.collect { value ->
                 _themeMode.value = when (value) {
                     "LIGHT" -> ThemeMode.LIGHT
                     "DARK" -> ThemeMode.DARK
@@ -66,7 +63,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
         viewModelScope.launch {
-            context.dataStore.edit { prefs ->
+            dataStore.edit { prefs ->
                 prefs[themeKey] = when (mode) {
                     ThemeMode.LIGHT -> "LIGHT"
                     ThemeMode.DARK -> "DARK"
@@ -78,32 +75,32 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveGitHubToken(token: String) {
         viewModelScope.launch {
-            context.dataStore.edit { prefs -> prefs[tokenKey] = token }
+            dataStore.edit { prefs -> prefs[tokenKey] = token }
         }
     }
 
     fun setFontScale(scale: Float) {
         viewModelScope.launch {
-            context.dataStore.edit { prefs -> prefs[fontScaleKey] = scale.toString() }
+            dataStore.edit { prefs -> prefs[fontScaleKey] = scale.toString() }
         }
     }
 
     fun setSepia(enabled: Boolean) {
         viewModelScope.launch {
-            context.dataStore.edit { prefs -> prefs[sepiaKey] = enabled.toString() }
+            dataStore.edit { prefs -> prefs[sepiaKey] = enabled.toString() }
         }
     }
 
     fun setAllowMeteredDownloads(enabled: Boolean) {
         viewModelScope.launch {
-            context.dataStore.edit { prefs -> prefs[meteredKey] = enabled.toString() }
+            dataStore.edit { prefs -> prefs[meteredKey] = enabled.toString() }
         }
     }
 
     fun recordRead() {
         viewModelScope.launch {
             val today = java.time.LocalDate.now().toString()
-            context.dataStore.edit { prefs ->
+            dataStore.edit { prefs ->
                 val last = prefs[lastReadDateKey]
                 val streak = prefs[streakKey]?.toIntOrNull() ?: 0
                 if (last == today) return@edit

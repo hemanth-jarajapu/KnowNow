@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import android.content.Intent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +55,7 @@ fun NotesScreen(onBackClick: () -> Unit, onOpenDocument: (Long) -> Unit) {
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Notes") },
+            navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             actions = {
                 IconButton(onClick = {
                     val md = notes.joinToString("\n\n") { "- ${it.content} (${it.documentTitleSnapshot})" }

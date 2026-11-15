@@ -42,7 +42,9 @@ class DownloadWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 val content = target.readText()
                 val (fm, body) = FrontmatterParser.parse(content)
                 val hash = sha256(body)
+                val existing = db.documentDao().getByPath(publicationId, relative)
                 val doc = DocumentEntity(
+                    id = existing?.id ?: 0,
                     publicationId = publicationId,
                     title = fm["title"] ?: relative.substringBeforeLast('.'),
                     description = fm["description"],
@@ -63,7 +65,7 @@ class DownloadWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             db.publicationDao().markReady(publicationId, System.currentTimeMillis(), done)
             Result.success(workDataOf(KEY_PROGRESS to done, KEY_TOTAL to total))
         } catch (e: Exception) {
-            Result.retry()
+            return Result.failure(workDataOf("error" to (e.message ?: "Download failed")))
         }
     }
 

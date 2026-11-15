@@ -20,14 +20,23 @@ interface PublicationDao {
     @Query("SELECT * FROM publications WHERE releaseName = :release ORDER BY title ASC")
     fun observeForRelease(release: String): Flow<List<PublicationEntity>>
 
+    @Query("SELECT * FROM publications WHERE releaseName = :release ORDER BY title ASC")
+    suspend fun getForRelease(release: String): List<PublicationEntity>
+
     @Query("SELECT * FROM publications WHERE id = :id")
     suspend fun getById(id: Long): PublicationEntity?
+
+    @Query("SELECT * FROM publications WHERE releaseName = :releaseName AND slug = :slug LIMIT 1")
+    suspend fun getByReleaseAndSlug(releaseName: String, slug: String): PublicationEntity?
 
     @Query("UPDATE publications SET status = :status, downloadedAt = :at, docCount = :count WHERE id = :id")
     suspend fun markReady(id: Long, at: Long, count: Int, status: String = "READY")
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(items: List<PublicationEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(items: List<PublicationEntity>): List<Long>
+
+    @Query("UPDATE publications SET title = :title WHERE releaseName = :releaseName AND slug = :slug")
+    suspend fun updateTitle(releaseName: String, slug: String, title: String)
 
     @Query("DELETE FROM publications WHERE id = :id")
     suspend fun delete(id: Long)
@@ -40,6 +49,9 @@ interface DocumentDao {
 
     @Query("SELECT * FROM documents WHERE id = :id")
     suspend fun getById(id: Long): DocumentEntity?
+
+    @Query("SELECT * FROM documents WHERE publicationId = :publicationId AND relativePath = :relativePath LIMIT 1")
+    suspend fun getByPath(publicationId: Long, relativePath: String): DocumentEntity?
 
     @Query("SELECT * FROM documents WHERE title LIKE '%' || :q || '%' ORDER BY title ASC LIMIT 50")
     fun search(q: String): Flow<List<DocumentEntity>>

@@ -41,17 +41,18 @@ class DocRepository(
     suspend fun fetchPublications(owner: String, repo: String, release: String): List<PublicationEntity> {
         val text = rawApi.getText("$owner/$repo/$release/llms.txt")
         val regex = Regex("""- \[(.+?)]\((https://raw\.githubusercontent\.com/[^)]+/markdown/([^/]+)/index\.md)\)""")
-        val out = linkedSetOf<PublicationEntity>()
+        val parsed = linkedMapOf<String, String>() // slug -> title
         for (m in regex.findAll(text)) {
             val title = m.groupValues[1]
             val slug = m.groupValues[3]
-            out += PublicationEntity(
-                releaseName = release,
-                slug = slug,
-                title = title,
-            )
+            parsed[slug] = title
         }
-        db.publicationDao().upsertAll(out.toList())
-        return out.toList()
+        val dao = db.publicationDao()
+        val toInsert = parsed.map { (slug, title) ->
+            PublicationEntity(releaseName = release, slug = slug, title = title)
+        }
+        dao.insertAll(toInsert)
+        parsed.forEach { (slug, title) -> dao.updateTitle(release, slug, title) }
+        return dao.getForRelease(release)
     }
 }

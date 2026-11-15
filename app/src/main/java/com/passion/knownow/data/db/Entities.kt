@@ -1,6 +1,7 @@
 package com.passion.knownow.data.db
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "releases")
@@ -12,7 +13,10 @@ data class ReleaseEntity(
     val syncedAt: Long = 0L,
 )
 
-@Entity(tableName = "publications")
+@Entity(
+    tableName = "publications",
+    indices = [Index(value = ["releaseName", "slug"], unique = true)]
+)
 data class PublicationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val releaseName: String,
@@ -66,7 +70,10 @@ data class ReadingProgressEntity(
     val lastReadAt: Long = System.currentTimeMillis(),
 )
 
-@Entity(tableName = "documents")
+@Entity(
+    tableName = "documents",
+    indices = [Index(value = ["publicationId", "relativePath"], unique = true)]
+)
 data class DocumentEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val publicationId: Long,

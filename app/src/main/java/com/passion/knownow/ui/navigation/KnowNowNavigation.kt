@@ -1,5 +1,9 @@
 package com.passion.knownow.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -31,9 +35,44 @@ object Routes {
     const val ABOUT = "about"
 }
 
+private const val NAV_ANIM_DURATION = 320
+
 @Composable
 fun KnowNowNavigation(navController: NavHostController = rememberNavController()) {
-    NavHost(navController = navController, startDestination = Routes.HOME) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.HOME,
+        enterTransition = {
+            fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = tween(NAV_ANIM_DURATION),
+                )
+        },
+        exitTransition = {
+            fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                    animationSpec = tween(NAV_ANIM_DURATION),
+                    targetOffset = { it / 4 },
+                )
+        },
+        popEnterTransition = {
+            fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = tween(NAV_ANIM_DURATION),
+                    initialOffset = { it / 4 },
+                )
+        },
+        popExitTransition = {
+            fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                    animationSpec = tween(NAV_ANIM_DURATION),
+                )
+        },
+    ) {
         composable(Routes.HOME) {
             HomeScreen(
                 onBrowseClick = { navController.navigate(Routes.BROWSE) },

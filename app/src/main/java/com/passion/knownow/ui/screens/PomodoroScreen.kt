@@ -48,7 +48,7 @@ fun PomodoroScreen(onBackClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(if (workMode) "Focus" else "Break", style = MaterialTheme.typography.headlineMedium)
-            Text(String.format("%02d:%02d", remaining / 60, remaining % 60), style = MaterialTheme.typography.displayLarge)
+            Text(String.format(androidx.compose.ui.platform.LocalConfiguration.current.locales[0], "%02d:%02d", remaining / 60, remaining % 60), style = MaterialTheme.typography.displayLarge)
             Button(onClick = { running = !running }, modifier = Modifier.padding(top = 16.dp)) {
                 Text(if (running) "Pause" else "Start")
             }
