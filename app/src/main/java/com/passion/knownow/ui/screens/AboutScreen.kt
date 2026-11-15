@@ -1,0 +1,48 @@
+package com.passion.knownow.ui.screens
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AboutScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    Scaffold(topBar = { TopAppBar(title = { Text("About & Guide") }) }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            Text("KnowNow", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+            Text("Offline ServiceNow documentation reader", style = MaterialTheme.typography.bodyMedium)
+            Text("Version 0.1.0", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+
+            Text("Guide", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            Text("1. Browse releases and download a topic.", style = MaterialTheme.typography.bodyMedium)
+            Text("2. Read offline with adaptive tables and markdown rendering.", style = MaterialTheme.typography.bodyMedium)
+            Text("3. Bookmark, highlight, and take notes while reading.", style = MaterialTheme.typography.bodyMedium)
+            Text("4. Search across downloaded docs and notes.", style = MaterialTheme.typography.bodyMedium)
+            Text("5. Use Pomodoro and flashcards for study sessions.", style = MaterialTheme.typography.bodyMedium)
+
+            TextButton(onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hemanth-jarajapu/KnowNow/blob/main/PRIVACY.md")))
+            }, modifier = Modifier.padding(top = 16.dp)) {
+                Text("Privacy Policy")
+            }
+            TextButton(onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hemanth-jarajapu/KnowNow")))
+            }) {
+                Text("Source code")
+            }
+        }
+    }
+}
