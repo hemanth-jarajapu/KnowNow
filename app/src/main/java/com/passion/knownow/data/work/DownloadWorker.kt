@@ -8,8 +8,15 @@ import com.passion.knownow.core.parsing.FrontmatterParser
 import com.passion.knownow.core.parsing.TocParser
 import com.passion.knownow.data.ServiceLocator
 import com.passion.knownow.data.db.DocumentEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicInteger
 
 class DownloadWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
@@ -29,41 +36,49 @@ class DownloadWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             val entries = TocParser.parse(indexText)
             val urls = entries.map { it.url }.distinct()
             val total = urls.size.coerceAtLeast(1)
-            var done = 0
+            val done = AtomicInteger(0)
+            val semaphore = Semaphore(8)
 
-            urls.forEachIndexed { index, url ->
-                val relative = url.substringAfter("/markdown/$slug/")
-                val target = File(filesDir, "docs/$release/$slug/$relative")
-                target.parentFile?.mkdirs()
-                if (!target.exists()) {
-                    val text = rawApi.getText(url.removePrefix("https://raw.githubusercontent.com/"))
-                    target.writeText(text)
-                }
-                val content = target.readText()
-                val (fm, body) = FrontmatterParser.parse(content)
-                val hash = sha256(body)
-                val existing = db.documentDao().getByPath(publicationId, relative)
-                val doc = DocumentEntity(
-                    id = existing?.id ?: 0,
-                    publicationId = publicationId,
-                    title = fm["title"] ?: relative.substringBeforeLast('.'),
-                    description = fm["description"],
-                    relativePath = relative,
-                    localPath = target.absolutePath,
-                    canonicalUrl = fm["canonical_url"],
-                    lastUpdated = fm["last_updated"],
-                    readingTimeMinutes = fm["reading_time_minutes"]?.toIntOrNull(),
-                    topicType = fm["topic_type"],
-                    sortOrder = index,
-                    contentHash = hash,
-                )
-                db.documentDao().upsertAll(listOf(doc))
-                done++
-                setProgress(workDataOf(KEY_PROGRESS to done, KEY_TOTAL to total))
+            val docs = coroutineScope {
+                urls.mapIndexed { index, url ->
+                    async(Dispatchers.IO) {
+                        semaphore.withPermit {
+                            val relative = url.substringAfter("/markdown/$slug/")
+                            val target = File(filesDir, "docs/$release/$slug/$relative")
+                            target.parentFile?.mkdirs()
+                            if (!target.exists() || target.length() == 0L) {
+                                val text = rawApi.getText(url.removePrefix("https://raw.githubusercontent.com/"))
+                                target.writeText(text)
+                            }
+                            val content = target.readText()
+                            val (fm, body) = FrontmatterParser.parse(content)
+                            val hash = sha256(body)
+                            val existing = db.documentDao().getByPath(publicationId, relative)
+                            val doc = DocumentEntity(
+                                id = existing?.id ?: 0,
+                                publicationId = publicationId,
+                                title = fm["title"] ?: relative.substringBeforeLast('.'),
+                                description = fm["description"],
+                                relativePath = relative,
+                                localPath = target.absolutePath,
+                                canonicalUrl = fm["canonical_url"],
+                                lastUpdated = fm["last_updated"],
+                                readingTimeMinutes = fm["reading_time_minutes"]?.toIntOrNull(),
+                                topicType = fm["topic_type"],
+                                sortOrder = index,
+                                contentHash = hash,
+                            )
+                            val completed = done.incrementAndGet()
+                            setProgress(workDataOf(KEY_PROGRESS to completed, KEY_TOTAL to total))
+                            doc
+                        }
+                    }
+                }.awaitAll()
             }
 
-            db.publicationDao().markReady(publicationId, System.currentTimeMillis(), done)
-            Result.success(workDataOf(KEY_PROGRESS to done, KEY_TOTAL to total))
+            db.documentDao().upsertAll(docs)
+            db.publicationDao().markReady(publicationId, System.currentTimeMillis(), docs.size)
+            Result.success(workDataOf(KEY_PROGRESS to docs.size, KEY_TOTAL to total))
         } catch (e: Exception) {
             return Result.failure(workDataOf("error" to (e.message ?: "Download failed")))
         }
