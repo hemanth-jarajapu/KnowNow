@@ -6,6 +6,7 @@ import com.passion.knownow.data.db.ReleaseEntity
 import com.passion.knownow.data.network.GitHubApi
 import com.passion.knownow.data.network.RawApi
 import com.passion.knownow.data.network.parseBranches
+import com.passion.knownow.data.network.parseDefaultBranch
 import kotlinx.coroutines.flow.firstOrNull
 
 class DocRepository(
@@ -14,13 +15,25 @@ class DocRepository(
     private val db: KnowNowDatabase,
 ) {
     suspend fun syncReleases(owner: String, repo: String) {
-        val branches = parseBranches(api.branchesRaw(owner, repo))
+        val defaultBranch = runCatching {
+            parseDefaultBranch(api.repoRaw(owner, repo))
+        }.getOrNull()
+
+        val branches = mutableListOf<com.passion.knownow.data.network.BranchDto>()
+        var page = 1
+        while (true) {
+            val batch = parseBranches(api.branchesRaw(owner, repo, perPage = 100, page = page))
+            branches += batch
+            if (batch.size < 100) break
+            page++
+        }
+
         val entities = branches.map { b ->
             ReleaseEntity(
                 name = b.name,
                 displayName = b.name.replaceFirstChar { it.uppercase() },
                 commitSha = b.sha,
-                isLatest = b.name == "brazil",
+                isLatest = b.name == defaultBranch,
                 syncedAt = System.currentTimeMillis(),
             )
         }
@@ -28,12 +41,12 @@ class DocRepository(
     }
 
     suspend fun deletePublication(pub: PublicationEntity) {
-        // Mark notes as orphaned (keep them), then remove docs + publication + files.
         val docs = db.documentDao().observeForPublication(pub.id).firstOrNull() ?: emptyList()
         docs.forEach { db.noteDao().markOrphaned(it.id) }
         docs.mapNotNull { it.localPath }.forEach { path ->
             runCatching { java.io.File(path).parentFile?.deleteRecursively() }
         }
+        db.downloadTaskDao().getForPublication(pub.id)?.let { db.downloadTaskDao().delete(it.id) }
         db.documentDao().deleteForPublication(pub.id)
         db.publicationDao().delete(pub.id)
     }
@@ -41,18 +54,21 @@ class DocRepository(
     suspend fun fetchPublications(owner: String, repo: String, release: String): List<PublicationEntity> {
         val text = rawApi.getText("$owner/$repo/$release/llms.txt")
         val regex = Regex("""- \[(.+?)]\((https://raw\.githubusercontent\.com/[^)]+/markdown/([^/]+)/index\.md)\)""")
-        val parsed = linkedMapOf<String, String>() // slug -> title
+        val parsed = linkedMapOf<String, String>()
         for (m in regex.findAll(text)) {
-            val title = m.groupValues[1]
-            val slug = m.groupValues[3]
-            parsed[slug] = title
+            parsed[m.groupValues[3]] = m.groupValues[1]
         }
+
         val dao = db.publicationDao()
-        val toInsert = parsed.map { (slug, title) ->
+        dao.insertAll(parsed.map { (slug, title) ->
             PublicationEntity(releaseName = release, slug = slug, title = title)
-        }
-        dao.insertAll(toInsert)
+        })
         parsed.forEach { (slug, title) -> dao.updateTitle(release, slug, title) }
+
+        // Prune publications that no longer exist in the source index.
+        val existing = dao.getForRelease(release)
+        existing.filter { it.slug !in parsed.keys }.forEach { deletePublication(it) }
+
         return dao.getForRelease(release)
     }
 }

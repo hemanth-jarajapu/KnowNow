@@ -2,67 +2,104 @@ package com.passion.knownow.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val BrandPrimary = Color(0xFF3F51B5)
-val BrandPrimaryContainer = Color(0xFFDCE0FF)
-val BrandOnPrimary = Color(0xFFFFFFFF)
-val BrandOnPrimaryContainer = Color(0xFF00105C)
-val BrandSecondary = Color(0xFF00BCD4)
-val BrandSecondaryContainer = Color(0xFFB2EBF2)
-val BrandOnSecondary = Color(0xFFFFFFFF)
-val BrandOnSecondaryContainer = Color(0xFF00363D)
-
-val LightBackground = Color(0xFFFDFBFF)
-val LightOnBackground = Color(0xFF1B1B1F)
-val LightSurfaceVariant = Color(0xFFE3E1EC)
-val LightOnSurfaceVariant = Color(0xFF46464F)
-val LightOutline = Color(0xFF777680)
-val LightOutlineVariant = Color(0xFFC7C5D0)
-val LightError = Color(0xFFBA1A1A)
-
-val DarkBackground = Color(0xFF121318)
-val DarkOnBackground = Color(0xFFE4E1E9)
-val DarkSurfaceVariant = Color(0xFF46464F)
-val DarkOnSurfaceVariant = Color(0xFFC7C5D0)
-val DarkOutline = Color(0xFF918F9A)
-val DarkOutlineVariant = Color(0xFF46464F)
-val DarkError = Color(0xFFFFB4AB)
+// Expressive app palette: violet, coral, mint.
+val Violet = Color(0xFF6C4DFF)
+val VioletDark = Color(0xFFC9BFFF)
+val Coral = Color(0xFFFF6B5A)
+val Mint = Color(0xFF00C2A8)
 
 val LightColors = androidx.compose.material3.lightColorScheme(
-    primary = BrandPrimary,
-    onPrimary = BrandOnPrimary,
-    primaryContainer = BrandPrimaryContainer,
-    onPrimaryContainer = BrandOnPrimaryContainer,
-    secondary = BrandSecondary,
-    onSecondary = BrandOnSecondary,
-    secondaryContainer = BrandSecondaryContainer,
-    onSecondaryContainer = BrandOnSecondaryContainer,
-    background = LightBackground,
-    onBackground = LightOnBackground,
-    surface = LightBackground,
-    onSurface = LightOnBackground,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant,
-    error = LightError,
+    primary = Violet,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE4DDFF),
+    onPrimaryContainer = Color(0xFF1D0060),
+    secondary = Coral,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFDAD4),
+    onSecondaryContainer = Color(0xFF410001),
+    tertiary = Mint,
+    onTertiary = Color(0xFF00382F),
+    tertiaryContainer = Color(0xFFB8F5E9),
+    onTertiaryContainer = Color(0xFF00201A),
+    background = Color(0xFFFDFBFF),
+    onBackground = Color(0xFF1B1B1F),
+    surface = Color(0xFFFDFBFF),
+    onSurface = Color(0xFF1B1B1F),
+    surfaceVariant = Color(0xFFE7E0EC),
+    onSurfaceVariant = Color(0xFF49454F),
+    outline = Color(0xFF79747E),
+    outlineVariant = Color(0xFFCAC4D0),
+    error = Color(0xFFBA1A1A),
+    onError = Color.White,
 )
 
 val DarkColors = androidx.compose.material3.darkColorScheme(
-    primary = Color(0xFFB8C4FF),
-    onPrimary = Color(0xFF00208E),
-    primaryContainer = Color(0xFF24389C),
-    onPrimaryContainer = Color(0xFFDCE0FF),
-    secondary = Color(0xFF4DD0E1),
-    onSecondary = Color(0xFF00363D),
-    secondaryContainer = Color(0xFF004F58),
-    onSecondaryContainer = Color(0xFFB2EBF2),
-    background = DarkBackground,
-    onBackground = DarkOnBackground,
-    surface = DarkBackground,
-    onSurface = DarkOnBackground,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant,
-    error = DarkError,
+    primary = VioletDark,
+    onPrimary = Color(0xFF32009A),
+    primaryContainer = Color(0xFF4B31C9),
+    onPrimaryContainer = Color(0xFFE4DDFF),
+    secondary = Color(0xFFFFB4A8),
+    onSecondary = Color(0xFF690100),
+    secondaryContainer = Color(0xFF930100),
+    onSecondaryContainer = Color(0xFFFFDAD4),
+    tertiary = Color(0xFF5FE8D2),
+    onTertiary = Color(0xFF00382F),
+    tertiaryContainer = Color(0xFF005046),
+    onTertiaryContainer = Color(0xFFB8F5E9),
+    background = Color(0xFF131218),
+    onBackground = Color(0xFFE6E1E9),
+    surface = Color(0xFF131218),
+    onSurface = Color(0xFFE6E1E9),
+    surfaceVariant = Color(0xFF49454F),
+    onSurfaceVariant = Color(0xFFCAC4D0),
+    outline = Color(0xFF938F99),
+    outlineVariant = Color(0xFF49454F),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+)
+
+// Reader palettes — deliberately separate from the expressive shell.
+data class ReaderPalette(
+    val background: Color,
+    val surface: Color,
+    val text: Color,
+    val muted: Color,
+    val accent: Color,
+    val isDark: Boolean,
+)
+
+val PaperPalette = ReaderPalette(
+    background = Color(0xFFF7F2E7),
+    surface = Color(0xFFFFFCF5),
+    text = Color(0xFF221F1A),
+    muted = Color(0xFF6E675C),
+    accent = Color(0xFF6C4DFF),
+    isDark = false,
+)
+
+val SepiaPalette = ReaderPalette(
+    background = Color(0xFFF2E6CF),
+    surface = Color(0xFFFBF0DC),
+    text = Color(0xFF3A2E1F),
+    muted = Color(0xFF7A6A52),
+    accent = Color(0xFF8A5A2B),
+    isDark = false,
+)
+
+val NightPalette = ReaderPalette(
+    background = Color(0xFF121212),
+    surface = Color(0xFF1B1B1B),
+    text = Color(0xFFE6E1D7),
+    muted = Color(0xFFA39C8F),
+    accent = Color(0xFFC9BFFF),
+    isDark = true,
+)
+
+val ExpressiveReaderPalette = ReaderPalette(
+    background = Color(0xFFFDFBFF),
+    surface = Color(0xFFFFFFFF),
+    text = Color(0xFF1B1B1F),
+    muted = Color(0xFF49454F),
+    accent = Violet,
+    isDark = false,
 )

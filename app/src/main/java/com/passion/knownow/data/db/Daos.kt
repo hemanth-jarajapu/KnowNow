@@ -20,6 +20,12 @@ interface PublicationDao {
     @Query("SELECT * FROM publications WHERE releaseName = :release ORDER BY title ASC")
     fun observeForRelease(release: String): Flow<List<PublicationEntity>>
 
+    @Query("SELECT * FROM publications WHERE status = 'READY' ORDER BY downloadedAt DESC")
+    fun observeDownloaded(): Flow<List<PublicationEntity>>
+
+    @Query("SELECT * FROM publications ORDER BY downloadedAt DESC")
+    fun observeAll(): Flow<List<PublicationEntity>>
+
     @Query("SELECT * FROM publications WHERE releaseName = :release ORDER BY title ASC")
     suspend fun getForRelease(release: String): List<PublicationEntity>
 

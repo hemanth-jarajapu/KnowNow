@@ -71,6 +71,38 @@ data class ReadingProgressEntity(
 )
 
 @Entity(
+    tableName = "download_tasks",
+    indices = [Index(value = ["publicationId"], unique = true)]
+)
+data class DownloadTaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val publicationId: Long,
+    val releaseName: String,
+    val slug: String,
+    val title: String,
+    val state: String = DownloadState.QUEUED,
+    val total: Int = 0,
+    val completed: Int = 0,
+    val bytes: Long = 0L,
+    val error: String? = null,
+    val attempts: Int = 0,
+    val forceRefresh: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+object DownloadState {
+    const val QUEUED = "QUEUED"
+    const val RUNNING = "RUNNING"
+    const val PAUSED = "PAUSED"
+    const val FAILED = "FAILED"
+    const val COMPLETED = "COMPLETED"
+    const val CANCELLED = "CANCELLED"
+
+    val active = setOf(QUEUED, RUNNING, PAUSED, FAILED)
+}
+
+@Entity(
     tableName = "documents",
     indices = [Index(value = ["publicationId", "relativePath"], unique = true)]
 )
