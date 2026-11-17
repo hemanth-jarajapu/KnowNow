@@ -56,16 +56,19 @@ val KnowNowTypography = Typography(
 )
 
 fun readerTypography(scale: Float): Typography = Typography(
-    displayLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Bold, fontSize = (46 * scale).sp, lineHeight = (54 * scale).sp),
-    headlineLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Bold, fontSize = (30 * scale).sp, lineHeight = (38 * scale).sp),
-    headlineMedium = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (25 * scale).sp, lineHeight = (32 * scale).sp),
-    headlineSmall = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (21 * scale).sp, lineHeight = (28 * scale).sp),
-    titleLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (19 * scale).sp, lineHeight = (26 * scale).sp),
-    titleMedium = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Medium, fontSize = (17 * scale).sp, lineHeight = (24 * scale).sp),
-    bodyLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Normal, fontSize = (19 * scale).sp, lineHeight = (31 * scale).sp, letterSpacing = 0.15.sp),
-    bodyMedium = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Normal, fontSize = (17 * scale).sp, lineHeight = (27 * scale).sp),
-    bodySmall = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Normal, fontSize = (15 * scale).sp, lineHeight = (22 * scale).sp),
-    labelLarge = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 20.sp),
-    labelMedium = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
-    labelSmall = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 14.sp),
+    displayLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Bold, fontSize = (40 * scale).sp, lineHeight = (48 * scale).sp),
+    headlineLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Bold, fontSize = (26 * scale).sp, lineHeight = (33 * scale).sp),
+    headlineMedium = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Bold, fontSize = (21 * scale).sp, lineHeight = (28 * scale).sp),
+    headlineSmall = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (19 * scale).sp, lineHeight = (26 * scale).sp),
+    titleLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (17.5f * scale).sp, lineHeight = (24 * scale).sp),
+    titleMedium = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (16 * scale).sp, lineHeight = (23 * scale).sp),
+    titleSmall = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.SemiBold, fontSize = (15 * scale).sp, lineHeight = (21 * scale).sp),
+    // Body copy: ~17.5sp with a 1.6 line-height and a 620dp measure keeps a sentence
+    // comfortably inside one or two eye movements on a phone.
+    bodyLarge = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Normal, fontSize = (17.5f * scale).sp, lineHeight = (28 * scale).sp, letterSpacing = 0.1.sp),
+    bodyMedium = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Normal, fontSize = (15.5f * scale).sp, lineHeight = (24 * scale).sp),
+    bodySmall = TextStyle(fontFamily = Newsreader, fontWeight = FontWeight.Normal, fontSize = (13.5f * scale).sp, lineHeight = (20 * scale).sp),
+    labelLarge = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp),
+    labelMedium = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, lineHeight = 16.sp),
+    labelSmall = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Medium, fontSize = 10.5.sp, lineHeight = 14.sp),
 )

@@ -221,6 +221,8 @@ fun TopicCard(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    summary: String? = null,
+    pageCount: Int? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -269,12 +271,23 @@ fun TopicCard(
                     Text(
                         text = when {
                             task != null -> taskStatusLabel(task)
-                            ready -> "${publication.docCount} docs · offline"
-                            else -> "Not downloaded"
+                            ready -> "${publication.docCount} pages · offline"
+                            pageCount != null -> "$pageCount pages · preview"
+                            else -> "Not downloaded · tap to preview"
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = scheme.onSurfaceVariant,
                     )
+                    if (summary != null && summary.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (trailing != null) {
                     trailing()

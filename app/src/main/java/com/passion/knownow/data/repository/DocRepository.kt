@@ -1,5 +1,7 @@
 package com.passion.knownow.data.repository
 
+import com.passion.knownow.core.parsing.TopicIndexParser
+import com.passion.knownow.core.parsing.TopicPreview
 import com.passion.knownow.data.db.KnowNowDatabase
 import com.passion.knownow.data.db.PublicationEntity
 import com.passion.knownow.data.db.ReleaseEntity
@@ -7,12 +9,16 @@ import com.passion.knownow.data.network.GitHubApi
 import com.passion.knownow.data.network.RawApi
 import com.passion.knownow.data.network.parseBranches
 import com.passion.knownow.data.network.parseDefaultBranch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
+import java.io.File
 
 class DocRepository(
     private val api: GitHubApi,
     private val rawApi: RawApi,
     private val db: KnowNowDatabase,
+    private val previewDir: File,
 ) {
     suspend fun syncReleases(owner: String, repo: String) {
         val defaultBranch = runCatching {
@@ -70,5 +76,44 @@ class DocRepository(
         existing.filter { it.slug !in parsed.keys }.forEach { deletePublication(it) }
 
         return dao.getForRelease(release)
+    }
+
+    /**
+     * Reads a publication's table of contents without downloading it.
+     *
+     * `markdown/<slug>/index.md` is a nested list of every page with a one-line description,
+     * a few hundred kilobytes at most. Fetching it once and keeping a copy in the cache means
+     * Discover can describe a topic and list its contents instantly after the first look,
+     * instead of the user having to commit to a multi-megabyte download to find out what is in
+     * it.
+     */
+    suspend fun previewIndex(
+        owner: String,
+        repo: String,
+        release: String,
+        slug: String,
+        maxAgeMs: Long = PREVIEW_TTL_MS,
+    ): TopicPreview? = withContext(Dispatchers.IO) {
+        val cacheFile = File(previewDir, "${release}__$slug.md")
+        val cached = runCatching { if (cacheFile.exists()) cacheFile.readText() else null }.getOrNull()
+        val fresh = cached != null && System.currentTimeMillis() - cacheFile.lastModified() < maxAgeMs
+        if (cached != null && fresh) return@withContext TopicIndexParser.parse(slug, cached)
+
+        val text = runCatching { rawApi.getText("$owner/$repo/$release/markdown/$slug/index.md") }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+        if (text == null) {
+            return@withContext cached?.let { TopicIndexParser.parse(slug, it) }
+        }
+        runCatching {
+            previewDir.mkdirs()
+            cacheFile.writeText(text)
+        }
+        TopicIndexParser.parse(slug, text)
+    }
+
+    private companion object {
+        /** A publication's outline changes at most with a release, so a day is plenty. */
+        const val PREVIEW_TTL_MS = 24 * 60 * 60 * 1000L
     }
 }

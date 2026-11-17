@@ -2,6 +2,7 @@ package com.passion.knownow.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.passion.knownow.core.parsing.TopicPreview
 import com.passion.knownow.data.ServiceLocator
 import com.passion.knownow.data.db.DocumentEntity
 import com.passion.knownow.data.db.DownloadTaskEntity
@@ -34,14 +35,24 @@ data class DiscoverUiState(
     val query: String = "",
     val detailPublication: PublicationEntity? = null,
     val detailDocuments: List<DocumentEntity> = emptyList(),
+    val preview: TopicPreview? = null,
+    val previewLoading: Boolean = false,
+    val previewError: String? = null,
+    /** One-line "what is this about" hints, filled as topics are previewed. */
+    val hints: Map<String, TopicHint> = emptyMap(),
 ) {
     val selectionMode: Boolean get() = selection.isNotEmpty()
     val visiblePublications: List<PublicationEntity>
         get() = if (query.isBlank()) publications
         else publications.filter {
-            it.title.contains(query, ignoreCase = true) || it.slug.contains(query, ignoreCase = true)
+            it.title.contains(query, ignoreCase = true) ||
+                it.slug.contains(query, ignoreCase = true) ||
+                hints[it.slug]?.summary?.contains(query, ignoreCase = true) == true
         }
 }
+
+/** What Discover knows about a topic it hasn't downloaded: a tagline and a page count. */
+data class TopicHint(val summary: String?, val pageCount: Int)
 
 private data class DiscoverInput(
     val selectedRelease: String? = null,
@@ -51,6 +62,10 @@ private data class DiscoverInput(
     val error: String? = null,
     val query: String = "",
     val detailId: Long? = null,
+    val preview: TopicPreview? = null,
+    val previewLoading: Boolean = false,
+    val previewError: String? = null,
+    val hints: Map<String, TopicHint> = emptyMap(),
 )
 
 class DiscoverViewModel : ViewModel() {
@@ -60,6 +75,7 @@ class DiscoverViewModel : ViewModel() {
 
     private val _input = MutableStateFlow(DiscoverInput())
     private var fetchJob: Job? = null
+    private var previewJob: Job? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val publications = _input
@@ -97,6 +113,10 @@ class DiscoverViewModel : ViewModel() {
             query = input.query,
             detailPublication = detail,
             detailDocuments = docs,
+            preview = input.preview,
+            previewLoading = input.previewLoading,
+            previewError = input.previewError,
+            hints = input.hints,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DiscoverUiState(syncing = true))
 
@@ -115,6 +135,21 @@ class DiscoverViewModel : ViewModel() {
             val newest = cached.maxOfOrNull { it.syncedAt } ?: 0L
             val stale = cached.isEmpty() || System.currentTimeMillis() - newest > RELEASE_TTL_MS
             if (stale) syncReleases()
+        }
+        // Fill in the first few cards so the list explains itself. Only a handful, one at a
+        // time: the outlines are a few hundred kilobytes each and are cached on disk, so this
+        // is a one-time cost per release rather than something that runs on every launch.
+        viewModelScope.launch {
+            publications.collect { pubs ->
+                val known = _input.value.hints
+                pubs.filter { it.slug !in known }.take(PREFETCH_LIMIT).forEach { pub ->
+                    val preview = runCatching {
+                        repository.previewIndex(OWNER, REPO, pub.releaseName, pub.slug)
+                    }.getOrNull()
+                    val hint = TopicHint(preview?.summary, preview?.pageCount ?: 0)
+                    _input.update { it.copy(hints = it.hints + (pub.slug to hint)) }
+                }
+            }
         }
     }
 
@@ -168,12 +203,55 @@ class DiscoverViewModel : ViewModel() {
         _input.update { it.copy(selection = emptySet()) }
     }
 
+    /** Opens the preview sheet and starts reading that topic's table of contents. */
     fun openDetail(pub: PublicationEntity) {
-        _input.update { it.copy(detailId = pub.id) }
+        _input.update {
+            it.copy(
+                detailId = pub.id,
+                preview = null,
+                previewLoading = true,
+                previewError = null,
+            )
+        }
+        loadPreview(pub)
+    }
+
+    fun retryPreview() {
+        val pub = state.value.detailPublication ?: return
+        _input.update { it.copy(previewLoading = true, previewError = null) }
+        loadPreview(pub)
+    }
+
+    private fun loadPreview(pub: PublicationEntity) {
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            val preview = runCatching {
+                repository.previewIndex(OWNER, REPO, pub.releaseName, pub.slug)
+            }.getOrNull()
+            _input.update {
+                it.copy(
+                    preview = preview,
+                    previewLoading = false,
+                    previewError = if (preview == null || preview.isEmpty) {
+                        "Couldn't load the contents of this topic"
+                    } else {
+                        null
+                    },
+                    hints = if (preview != null && !preview.isEmpty) {
+                        it.hints + (pub.slug to TopicHint(preview.summary, preview.pageCount))
+                    } else {
+                        it.hints
+                    },
+                )
+            }
+        }
     }
 
     fun closeDetail() {
-        _input.update { it.copy(detailId = null) }
+        previewJob?.cancel()
+        _input.update {
+            it.copy(detailId = null, preview = null, previewLoading = false, previewError = null)
+        }
     }
 
     fun download(pub: PublicationEntity) {
@@ -219,5 +297,6 @@ class DiscoverViewModel : ViewModel() {
         private const val OWNER = "ServiceNow"
         private const val REPO = "ServiceNowDocs"
         private const val RELEASE_TTL_MS = 6 * 60 * 60 * 1000L
+        private const val PREFETCH_LIMIT = 5
     }
 }

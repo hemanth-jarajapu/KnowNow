@@ -24,8 +24,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     private val sepiaKey = stringPreferencesKey("sepia")
     private val readerThemeKey = stringPreferencesKey("reader_theme")
     private val dynamicColorKey = stringPreferencesKey("dynamic_color")
-    private val streakKey = stringPreferencesKey("reading_streak")
-    private val lastReadDateKey = stringPreferencesKey("last_read_date")
     private val meteredKey = stringPreferencesKey("allow_metered_downloads")
 
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
@@ -44,10 +42,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     val fontScale: StateFlow<Float> = dataStore.data
         .map { it[fontScaleKey]?.toFloatOrNull() ?: 1f }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
-
-    val readingStreak: StateFlow<Int> = dataStore.data
-        .map { it[streakKey]?.toIntOrNull() ?: 0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val allowMeteredDownloads: StateFlow<Boolean> = dataStore.data
         .map { it[meteredKey] == "true" }
@@ -140,21 +134,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setAllowMeteredDownloads(enabled: Boolean) {
         viewModelScope.launch {
             dataStore.edit { prefs -> prefs[meteredKey] = enabled.toString() }
-        }
-    }
-
-    fun recordRead() {
-        viewModelScope.launch {
-            val today = java.time.LocalDate.now().toString()
-            dataStore.edit { prefs ->
-                val last = prefs[lastReadDateKey]
-                val streak = prefs[streakKey]?.toIntOrNull() ?: 0
-                if (last == today) return@edit
-                val yesterday = java.time.LocalDate.now().minusDays(1).toString()
-                val newStreak = if (last == yesterday) streak + 1 else 1
-                prefs[lastReadDateKey] = today
-                prefs[streakKey] = newStreak.toString()
-            }
         }
     }
 }

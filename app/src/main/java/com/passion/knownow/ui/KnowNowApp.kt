@@ -22,10 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +66,7 @@ private data class TopLevelDestination(
 private val topLevelDestinations = listOf(
     TopLevelDestination(Routes.LIBRARY, "Library", Icons.AutoMirrored.Filled.MenuBook),
     TopLevelDestination(Routes.DISCOVER, "Discover", Icons.Filled.Explore),
-    TopLevelDestination(Routes.STUDY, "Study", Icons.Filled.School),
+    TopLevelDestination(Routes.OFFLINE, "Offline", Icons.Filled.DownloadDone),
     TopLevelDestination(Routes.YOU, "You", Icons.Filled.Person),
 )
 

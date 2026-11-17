@@ -36,24 +36,29 @@ class DownloadRepository(
     private val inFlight = mutableSetOf<Long>()
 
     suspend fun enqueue(publications: List<PublicationEntity>, refresh: Boolean = false) {
-        publications.forEach { pub ->
-            val existing = db.downloadTaskDao().getForPublication(pub.id)
-            if (existing == null) {
-                db.downloadTaskDao().insert(
-                    DownloadTaskEntity(
-                        publicationId = pub.id,
-                        releaseName = pub.releaseName,
-                        slug = pub.slug,
-                        title = pub.title,
-                        forceRefresh = refresh,
+        // The queue is mutated from the UI and from the worker's completion callback at the
+        // same time; without the lock two taps could both insert and trip the unique index
+        // on publicationId, which used to crash the app mid-download.
+        mutex.withLock {
+            publications.forEach { pub ->
+                val existing = db.downloadTaskDao().getForPublication(pub.id)
+                if (existing == null) {
+                    db.downloadTaskDao().insert(
+                        DownloadTaskEntity(
+                            publicationId = pub.id,
+                            releaseName = pub.releaseName,
+                            slug = pub.slug,
+                            title = pub.title,
+                            forceRefresh = refresh,
+                        )
                     )
-                )
-            } else {
-                when (existing.state) {
-                    DownloadState.QUEUED, DownloadState.RUNNING -> Unit
-                    DownloadState.PAUSED -> db.downloadTaskDao().setState(existing.id, DownloadState.QUEUED)
-                    DownloadState.COMPLETED -> if (refresh) db.downloadTaskDao().resetForRefresh(existing.id)
-                    else -> db.downloadTaskDao().resetForQueue(existing.id)
+                } else {
+                    when (existing.state) {
+                        DownloadState.QUEUED, DownloadState.RUNNING -> Unit
+                        DownloadState.PAUSED -> db.downloadTaskDao().setState(existing.id, DownloadState.QUEUED)
+                        DownloadState.COMPLETED -> if (refresh) db.downloadTaskDao().resetForRefresh(existing.id)
+                        else -> db.downloadTaskDao().resetForQueue(existing.id)
+                    }
                 }
             }
         }

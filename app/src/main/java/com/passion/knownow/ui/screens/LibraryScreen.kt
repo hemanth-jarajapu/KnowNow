@@ -19,15 +19,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowOutward
+import androidx.compose.material.icons.automirrored.filled.StickyNote2
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,36 +37,54 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.passion.knownow.data.db.PublicationEntity
 import com.passion.knownow.data.db.RecentDocRow
 import com.passion.knownow.ui.components.ContinueReadingCard
 import com.passion.knownow.ui.components.EmptyState
 import com.passion.knownow.ui.components.SectionHeader
-import com.passion.knownow.ui.components.StatPill
 import com.passion.knownow.ui.components.relativeTime
-import com.passion.knownow.ui.theme.Coral
 import com.passion.knownow.ui.theme.Mint
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Home. One entry point per intent:
+ *
+ * - "keep reading where I stopped" -> the resume card
+ * - "read something I already have" -> Offline
+ * - "what did I mark" -> Bookmarks / Notes
+ * - "what did I read lately" -> recently read
+ *
+ * Nothing here repeats another tab: the offline shelf lives in Offline, the catalog in
+ * Discover, so Library stays a short, single-column page that fits on one screen.
+ */
 @Composable
 fun LibraryScreen(
     onOpenDocument: (Long) -> Unit,
     onBrowse: () -> Unit,
     onSearch: () -> Unit,
-    onOpenTopic: (Long) -> Unit,
+    onOpenOffline: () -> Unit,
+    onOpenNotes: () -> Unit,
+    onOpenBookmarks: () -> Unit,
 ) {
     val vm: LibraryViewModel = viewModel()
     val state by vm.state.collectAsState()
 
+    val latest = state.recent.firstOrNull()
+    // The resume card already shows the most recent page; repeating it in the list below
+    // would be the same row twice.
+    val earlier = if (latest != null) state.recent.drop(1) else state.recent
+    val hasDownloads = state.documentCount > 0
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -99,11 +116,9 @@ fun LibraryScreen(
             }
         }
 
-        val latest = state.recent.firstOrNull()
         if (latest != null) {
-            val topic = state.topics.firstOrNull { it.id == latest.publicationId }?.title
-                ?: "Offline docs"
-            val subtitle = if (topic.equals(latest.title, ignoreCase = true)) {
+            val topic = latest.topicTitle?.takeIf { it.isNotBlank() }
+            val subtitle = if (topic == null || topic.equals(latest.title, ignoreCase = true)) {
                 "${relativeTime(latest.lastReadAt)} · ${latest.progressPercent.times(100).toInt()}% read"
             } else {
                 "$topic · ${relativeTime(latest.lastReadAt)}"
@@ -120,69 +135,122 @@ fun LibraryScreen(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatPill("documents", state.documentCount.toString(), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                StatPill("topics", state.topicCount.toString(), Mint, Modifier.weight(1f))
-                StatPill("notes", state.noteCount.toString(), Coral, Modifier.weight(1f))
+                ShortcutTile(
+                    icon = Icons.Filled.DownloadDone,
+                    value = state.topicCount.toString(),
+                    label = if (state.topicCount == 1) "Topic offline" else "Topics offline",
+                    subLabel = "${state.documentCount} pages",
+                    tint = Mint,
+                    onClick = onOpenOffline,
+                    modifier = Modifier.weight(1f),
+                )
+                ShortcutTile(
+                    icon = Icons.Filled.BookmarkBorder,
+                    value = state.bookmarkCount.toString(),
+                    label = "Bookmarks",
+                    subLabel = if (state.bookmarkCount == 0) "Nothing saved" else "Saved pages",
+                    tint = com.passion.knownow.ui.theme.Violet,
+                    onClick = onOpenBookmarks,
+                    modifier = Modifier.weight(1f),
+                )
+                ShortcutTile(
+                    icon = Icons.AutoMirrored.Filled.StickyNote2,
+                    value = state.noteCount.toString(),
+                    label = "Notes",
+                    subLabel = if (state.noteCount == 0) "No thoughts yet" else "Your thoughts",
+                    tint = com.passion.knownow.ui.theme.Coral,
+                    onClick = onOpenNotes,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
 
-        item {
-            SectionHeader(
-                title = "Keep going",
-                subtitle = if (state.recent.isEmpty()) null else "${state.recent.size} recently opened",
-            )
-        }
-
-        if (state.recent.isNotEmpty()) {
+        if (earlier.isNotEmpty()) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LibraryFilter.entries.forEach { filter ->
-                        FilterChip(
-                            selected = state.filter == filter,
-                            onClick = { vm.setFilter(filter) },
-                            label = {
-                                Text(
-                                    when (filter) {
-                                        LibraryFilter.ALL -> "All"
-                                        LibraryFilter.IN_PROGRESS -> "In progress"
-                                        LibraryFilter.DOWNLOADED -> "Downloaded"
-                                    }
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                        )
-                    }
-                }
+                SectionHeader(title = "Recently read")
             }
-            items(state.recent, key = { it.id }) { row ->
+            items(earlier, key = { "doc-${it.id}" }) { row ->
                 RecentDocRowCard(row, onClick = { onOpenDocument(row.id) })
             }
-        } else {
+        }
+
+        if (!hasDownloads) {
             item {
                 EmptyState(
-                    title = "A quiet shelf",
-                    body = "Download a topic from Discover and it will show up here, ready offline.",
+                    title = "Your shelf is empty",
+                    body = "Download a topic from Discover and its pages will be readable here, offline.",
                     actionLabel = "Browse catalog",
                     onAction = onBrowse,
                 )
             }
-        }
-
-        if (state.topics.isNotEmpty()) {
+        } else if (latest == null) {
             item {
-                SectionHeader(
-                    title = "Your topics",
-                    subtitle = "Available offline",
-                    actionLabel = "Explore",
-                    onAction = onBrowse,
+                EmptyState(
+                    title = "Nothing opened yet",
+                    body = "${state.documentCount} pages are ready on this device. Pick one to start reading.",
+                    actionLabel = "Open offline shelf",
+                    onAction = onOpenOffline,
                 )
             }
-            items(state.topics, key = { it.id }) { pub ->
-                TopicRow(pub, onClick = { onOpenTopic(pub.id) })
+        }
+    }
+}
+
+@Composable
+private fun ShortcutTile(
+    icon: ImageVector,
+    value: String,
+    label: String,
+    subLabel: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.primary,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        modifier = modifier,
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tint.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(18.dp),
+                )
             }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                subLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -222,10 +290,17 @@ private fun RecentDocRowCard(row: RecentDocRow, onClick: () -> Unit) {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                val meta = if (row.topicTitle.isNullOrBlank() || row.topicTitle.equals(row.title, ignoreCase = true)) {
+                    relativeTime(row.lastReadAt)
+                } else {
+                    "${row.topicTitle} · ${relativeTime(row.lastReadAt)}"
+                }
                 Text(
-                    relativeTime(row.lastReadAt),
+                    meta,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 if (row.progressPercent > 0f) {
                     Spacer(Modifier.height(8.dp))
@@ -245,42 +320,6 @@ private fun RecentDocRowCard(row: RecentDocRow, onClick: () -> Unit) {
                 Icons.Filled.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TopicRow(pub: PublicationEntity, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-    ) {
-        Row(
-            Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    pub.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "${pub.docCount} documents · ${pub.releaseName}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                Icons.Filled.ArrowOutward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
             )
         }
     }

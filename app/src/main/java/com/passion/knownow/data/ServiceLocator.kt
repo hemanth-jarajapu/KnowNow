@@ -96,7 +96,7 @@ object ServiceLocator {
     }
 
     val docRepository: DocRepository by lazy {
-        DocRepository(githubApi, rawApi, database)
+        DocRepository(githubApi, rawApi, database, File(appContext.cacheDir, "topic_previews"))
     }
 
     val downloadRepository: DownloadRepository by lazy {

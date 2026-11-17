@@ -18,10 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Highlight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,19 +48,21 @@ fun YouScreen(
     onOpenSettings: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenAbout: () -> Unit,
-    onOpenLibrary: () -> Unit,
+    onOpenOffline: () -> Unit,
+    onOpenNotes: () -> Unit,
+    onOpenBookmarks: () -> Unit,
+    onOpenHighlights: () -> Unit,
     onOpenPrivacy: () -> Unit,
 ) {
     val vm: LibraryViewModel = viewModel()
     val state by vm.state.collectAsState()
     val settings: SettingsViewModel = viewModel()
     val token by settings.gitHubToken.collectAsState()
-    val streak by settings.readingStreak.collectAsState()
     val lastRead = state.recent.firstOrNull()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
@@ -93,12 +99,11 @@ fun YouScreen(
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Offline learner", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Offline reader", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
                             buildString {
-                                append("${state.documentCount} documents")
+                                append("${state.documentCount} pages")
                                 if (state.topicCount > 0) append(" · ${state.topicCount} topics")
-                                if (streak > 0) append(" · $streak-day streak")
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -113,14 +118,42 @@ fun YouScreen(
             }
         }
 
+        item { GroupLabel("READING") }
+
         item {
-            Text(
-                "SETTINGS",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+            SettingsRow(
+                icon = Icons.Filled.DownloadDone,
+                title = "Offline library",
+                subtitle = "${state.documentCount} pages you can read anywhere",
+                onClick = onOpenOffline,
             )
         }
+        item {
+            SettingsRow(
+                icon = Icons.Filled.BookmarkBorder,
+                title = "Bookmarks",
+                subtitle = if (state.bookmarkCount == 0) "Save a page from the reader" else "${state.bookmarkCount} saved pages",
+                onClick = onOpenBookmarks,
+            )
+        }
+        item {
+            SettingsRow(
+                icon = Icons.Filled.StickyNote2,
+                title = "Notes",
+                subtitle = if (state.noteCount == 0) "Jot down what matters" else "${state.noteCount} pages with notes",
+                onClick = onOpenNotes,
+            )
+        }
+        item {
+            SettingsRow(
+                icon = Icons.Filled.Highlight,
+                title = "Highlights",
+                subtitle = "Passages you marked",
+                onClick = onOpenHighlights,
+            )
+        }
+
+        item { GroupLabel("APP") }
 
         item {
             SettingsRow(
@@ -143,14 +176,14 @@ fun YouScreen(
                 icon = Icons.AutoMirrored.Filled.MenuBook,
                 title = "Library",
                 subtitle = "Resume and manage offline topics",
-                onClick = onOpenLibrary,
+                onClick = onOpenOffline,
             )
         }
         item {
             SettingsRow(
                 icon = Icons.Filled.Info,
                 title = "About & guide",
-                subtitle = "Version 0.2.0 · how KnowNow works",
+                subtitle = "Version 0.3.0 · how KnowNow works",
                 onClick = onOpenAbout,
             )
         }
@@ -186,6 +219,16 @@ fun YouScreen(
             }
         }
     }
+}
+
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 16.dp, bottom = 2.dp),
+    )
 }
 
 @Composable

@@ -39,8 +39,19 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE documentId = :documentId ORDER BY updatedAt DESC")
     fun observeForDocument(documentId: Long): Flow<List<NoteEntity>>
 
-    @Query("SELECT * FROM notes WHERE content LIKE '%' || :q || '%' ORDER BY updatedAt DESC")
+    @Query(
+        """
+        SELECT * FROM notes
+        WHERE content LIKE '%' || :q || '%'
+           OR tags LIKE '%' || :q || '%'
+           OR documentTitleSnapshot LIKE '%' || :q || '%'
+        ORDER BY updatedAt DESC
+        """
+    )
     fun search(q: String): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getById(id: Long): NoteEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: NoteEntity): Long

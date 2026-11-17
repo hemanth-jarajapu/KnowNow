@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -37,11 +39,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +54,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +65,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.passion.knownow.core.parsing.PreviewEntry
+import com.passion.knownow.core.parsing.TopicPreview
 import com.passion.knownow.data.db.DocumentEntity
 import com.passion.knownow.data.db.DownloadState
 import com.passion.knownow.data.db.PublicationEntity
@@ -67,6 +77,7 @@ import com.passion.knownow.ui.components.formatBytes
 @Composable
 fun DiscoverScreen(
     onOpenDocument: (Long) -> Unit,
+    onOpenTopic: (Long) -> Unit,
     onOpenDownloads: () -> Unit,
     onSearch: () -> Unit,
 ) {
@@ -100,7 +111,7 @@ fun DiscoverScreen(
                             Text(release.displayName)
                             if (release.isLatest) {
                                 Spacer(Modifier.width(4.dp))
-                                Text("•", color = MaterialTheme.colorScheme.secondary)
+                                Text("â€¢", color = MaterialTheme.colorScheme.secondary)
                             }
                         }
                     },
@@ -137,7 +148,7 @@ fun DiscoverScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(12.dp))
-                        Text("Syncing releases…", style = MaterialTheme.typography.bodyMedium)
+                        Text("Syncing releasesâ€¦", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -148,7 +159,7 @@ fun DiscoverScreen(
             }
             else -> {
                 LazyColumn(
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     state.error?.let { error ->
@@ -173,7 +184,7 @@ fun DiscoverScreen(
                     if (state.visiblePublications.isEmpty() && !state.loading) {
                         item {
                             Text(
-                                "No topics match “${state.query}”",
+                                "No topics match â€œ${state.query}â€",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 24.dp),
@@ -182,12 +193,19 @@ fun DiscoverScreen(
                     }
                     items(state.visiblePublications, key = { it.id }) { pub ->
                         val selected = pub.id in state.selection
+                        val ready = pub.status == "READY"
                         Column {
                             TopicCard(
                                 publication = pub,
                                 task = state.tasks[pub.id],
+                                summary = state.hints[pub.slug]?.summary,
+                                pageCount = state.hints[pub.slug]?.pageCount?.takeIf { it > 0 },
                                 onClick = {
-                                    if (state.selectionMode) vm.toggleSelection(pub.id) else vm.openDetail(pub)
+                                    when {
+                                        state.selectionMode -> vm.toggleSelection(pub.id)
+                                        ready -> onOpenTopic(pub.id)
+                                        else -> vm.openDetail(pub)
+                                    }
                                 },
                                 onLongClick = { vm.startSelection(pub.id) },
                                 onDownload = { vm.download(pub) },
@@ -198,6 +216,7 @@ fun DiscoverScreen(
                                     } else {
                                         TopicActions(
                                             pub = pub,
+                                            ready = ready,
                                             taskState = state.tasks[pub.id]?.state,
                                             onDownload = { vm.download(pub) },
                                             onRefresh = { vm.refresh(pub) },
@@ -220,9 +239,18 @@ fun DiscoverScreen(
             publication = pub,
             documents = state.detailDocuments,
             taskState = state.tasks[pub.id]?.state,
+            ready = pub.status == "READY",
+            preview = state.preview,
+            previewLoading = state.previewLoading,
+            previewError = state.previewError,
             onDismiss = vm::closeDetail,
             onDownload = { vm.download(pub) },
             onRefresh = { vm.refresh(pub) },
+            onRetryPreview = vm::retryPreview,
+            onOpenTopic = {
+                vm.closeDetail()
+                onOpenTopic(pub.id)
+            },
             onOpenDocument = onOpenDocument,
         )
     }
@@ -311,6 +339,7 @@ private fun SelectionMark(selected: Boolean) {
 @Composable
 private fun TopicActions(
     pub: PublicationEntity,
+    ready: Boolean,
     taskState: String?,
     onDownload: () -> Unit,
     onRefresh: () -> Unit,
@@ -332,28 +361,72 @@ private fun TopicActions(
                 IconButton(onClick = onResume) { Icon(Icons.Filled.Refresh, contentDescription = "Retry") }
             }
             DownloadState.COMPLETED -> {
-                IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, contentDescription = "Refresh") }
+                Icon(
+                    Icons.Filled.DownloadDone,
+                    contentDescription = "Saved offline",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                )
             }
             else -> {
-                IconButton(onClick = onDownload) {
-                    Icon(Icons.Filled.CloudDownload, contentDescription = "Download ${pub.title}")
+                if (ready) {
+                    IconButton(onClick = onRefresh) {
+                        Icon(
+                            Icons.Filled.DownloadDone,
+                            contentDescription = "Saved offline â€” tap to refresh",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                } else {
+                    IconButton(onClick = onDownload) {
+                        Icon(Icons.Filled.CloudDownload, contentDescription = "Download ${pub.title}")
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * The "what am I downloading?" sheet.
+ *
+ * A publication cannot be described by its title alone ("Solutions", "Core Business Suite"),
+ * so before anything is downloaded this shows the topic's own landing-page summary and its
+ * table of contents, searchable, straight from the publication's `index.md`. Once the topic
+ * is on the device the same sheet lists the local pages instead.
+ */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun TopicDetailSheet(
     publication: PublicationEntity,
     documents: List<DocumentEntity>,
     taskState: String?,
+    ready: Boolean,
+    preview: TopicPreview?,
+    previewLoading: Boolean,
+    previewError: String?,
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
     onRefresh: () -> Unit,
+    onRetryPreview: () -> Unit,
+    onOpenTopic: () -> Unit,
     onOpenDocument: (Long) -> Unit,
 ) {
+    var query by remember(publication.id) { mutableStateOf("") }
+    var limit by remember(publication.id) { mutableIntStateOf(PREVIEW_CHUNK) }
+
+    val entries = preview?.entries.orEmpty()
+    val filtered = remember(entries, query) {
+        if (query.isBlank()) {
+            entries
+        } else {
+            entries.filter {
+                it.title.contains(query, ignoreCase = true) ||
+                    it.description.contains(query, ignoreCase = true) ||
+                    it.ancestors.any { parent -> parent.contains(query, ignoreCase = true) }
+            }
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -362,89 +435,178 @@ private fun TopicDetailSheet(
         Column(
             Modifier
                 .fillMaxWidth()
+                .fillMaxHeight(0.92f)
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp)
                 .navigationBarsPadding(),
         ) {
-            Text(publication.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                publication.title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.height(4.dp))
             Text(
                 buildString {
                     append(publication.releaseName)
-                    if (publication.docCount > 0) append(" · ${publication.docCount} documents")
+                    val pages = if (ready) publication.docCount else preview?.pageCount ?: 0
+                    if (pages > 0) append(" · $pages pages")
                     if (publication.totalBytes > 0) append(" · ${formatBytes(publication.totalBytes)}")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(16.dp))
 
-            when (taskState) {
-                DownloadState.RUNNING, DownloadState.QUEUED -> {
+            when {
+                taskState == DownloadState.RUNNING || taskState == DownloadState.QUEUED -> {
+                    Spacer(Modifier.height(12.dp))
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                     Spacer(Modifier.height(6.dp))
                     Text("Downloading…", style = MaterialTheme.typography.labelSmall)
                 }
-                DownloadState.PAUSED -> Text("Paused", style = MaterialTheme.typography.labelMedium)
-                DownloadState.FAILED -> Text(
-                    "Download failed — retry from the queue",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                DownloadState.COMPLETED -> Text(
-                    "Available offline",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
-                else -> Unit
+                taskState == DownloadState.PAUSED -> {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Paused", style = MaterialTheme.typography.labelMedium)
+                }
+                taskState == DownloadState.FAILED -> {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Download failed — retry from the queue",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                ready -> {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Available offline",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (taskState == DownloadState.COMPLETED) {
-                    Button(onClick = onRefresh) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (ready && taskState != DownloadState.RUNNING && taskState != DownloadState.QUEUED) {
+                    Button(onClick = onOpenTopic) {
+                        Icon(Icons.Filled.DownloadDone, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Refresh")
+                        Text("Open topic")
                     }
-                } else if (taskState == null || taskState == DownloadState.CANCELLED) {
+                    OutlinedButton(onClick = onRefresh) { Text("Refresh") }
+                } else if (taskState == null || taskState == DownloadState.CANCELLED || taskState == DownloadState.FAILED) {
                     Button(onClick = onDownload) {
                         Icon(Icons.Filled.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Download topic")
+                        Text(
+                            if (preview != null && preview.pageCount > 0) {
+                                "Download ${preview.pageCount} pages"
+                            } else {
+                                "Download topic"
+                            }
+                        )
                     }
                 }
             }
 
-            if (documents.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
-                Text("Documents", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+            HorizontalDivider(Modifier.padding(vertical = 14.dp))
+
+            when {
+                ready && documents.isEmpty() -> SheetNote("Loading this topic…")
+                ready -> {
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        items(documents, key = { it.id }) { doc ->
+                            Surface(
+                                onClick = { onOpenDocument(doc.id) },
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.Article,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        doc.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                previewLoading -> Row(
+                    Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    items(documents, key = { it.id }) { doc ->
-                        Surface(
-                            onClick = { onOpenDocument(doc.id) },
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.Article,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    doc.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Reading the topic contents…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                preview == null -> Column {
+                    SheetNote(
+                        previewError
+                            ?: "Previews need a connection the first time. Download the topic to read it offline."
+                    )
+                    TextButton(onClick = onRetryPreview) { Text("Try again") }
+                }
+                else -> {
+                    preview.summary?.let { summary ->
+                        Text(
+                            summary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = {
+                            query = it
+                            limit = PREVIEW_CHUNK
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search these ${entries.size} pages") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (query.isBlank()) "What's inside" else "${filtered.size} matching pages",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    if (filtered.isEmpty()) {
+                        SheetNote("No page title mentions “$query”.")
+                    } else {
+                        LazyColumn(Modifier.weight(1f)) {
+                            items(filtered.take(limit)) { entry -> ContentRow(entry) }
+                            if (filtered.size > limit) {
+                                item {
+                                    TextButton(
+                                        onClick = { limit += PREVIEW_CHUNK },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text("Show more (${filtered.size - limit} left)")
+                                    }
+                                }
                             }
                         }
                     }
@@ -453,3 +615,47 @@ private fun TopicDetailSheet(
         }
     }
 }
+
+@Composable
+private fun SheetNote(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun ContentRow(entry: PreviewEntry) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        if (entry.ancestors.isNotEmpty()) {
+            Text(
+                entry.ancestors.take(2).reversed().joinToString(" › "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            entry.title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (entry.description.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                entry.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private const val PREVIEW_CHUNK = 25

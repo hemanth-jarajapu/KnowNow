@@ -3,67 +3,75 @@ package com.passion.knownow.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.passion.knownow.core.rendering.TableKind
 import com.passion.knownow.core.rendering.TableModel
 
+/**
+ * Reference tables, rendered for a phone rather than a desktop.
+ *
+ * The first column is treated as the label of a definition and gets a fixed 40% share, the
+ * remaining cells flow as prose. That keeps "Field | Description" tables readable instead of
+ * the even 50/50 split a generic markdown renderer produces.
+ */
 @Composable
 fun AdaptiveTable(model: TableModel, modifier: Modifier = Modifier) {
-    when (model.kind) {
-        TableKind.PROPERTIES -> PropertyCards(model)
-        TableKind.PARAMETERS -> ParameterCards(model)
-        TableKind.NAV_CARDS -> NavCards(model)
-        TableKind.GENERIC -> GenericTable(model)
-    }
-}
+    if (model.rows.isEmpty() && model.header.isEmpty()) return
+    val scheme = MaterialTheme.colorScheme
 
-@Composable
-private fun PropertyCards(model: TableModel) {
-    Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        model.rows.forEach { row ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(row.getOrElse(0) { "" }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                    Text(row.getOrElse(1) { "" }, style = MaterialTheme.typography.bodyMedium)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = scheme.surfaceVariant.copy(alpha = 0.4f),
+    ) {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            if (model.header.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp)) {
+                    Text(
+                        model.header.first(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(LABEL_WEIGHT),
+                    )
+                    Text(
+                        model.header.drop(1).filter { it.isNotBlank() }.joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(VALUE_WEIGHT),
+                    )
                 }
+                HorizontalDivider(
+                    color = scheme.outlineVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
-        }
-    }
-}
 
-@Composable
-private fun ParameterCards(model: TableModel) {
-    Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        model.rows.forEach { row ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(row.getOrElse(0) { "" }, style = MaterialTheme.typography.titleSmall)
-                        Text(row.getOrElse(1) { "" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
-                    }
-                    Text(row.getOrElse(2) { "" }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NavCards(model: TableModel) {
-    Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        model.rows.forEach { row ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    row.forEach { cell ->
-                        if (cell.isNotBlank()) Text(cell, style = MaterialTheme.typography.bodyMedium)
-                    }
+            model.rows.forEachIndexed { index, row ->
+                TableRow(row)
+                if (index != model.rows.lastIndex) {
+                    HorizontalDivider(
+                        color = scheme.outlineVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                    )
                 }
             }
         }
@@ -71,21 +79,47 @@ private fun NavCards(model: TableModel) {
 }
 
 @Composable
-private fun GenericTable(model: TableModel) {
-    Column(Modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (model.header.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                model.header.forEach { h ->
-                    Text(h, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-                }
+private fun TableRow(row: List<String>) {
+    val scheme = MaterialTheme.colorScheme
+    val label = row.firstOrNull().orEmpty()
+    val type = if (row.size >= 3) row[1] else ""
+    val value = if (row.size >= 3) {
+        row.drop(2).filter { it.isNotBlank() }.joinToString(" · ")
+    } else {
+        row.getOrElse(1) { "" }
+    }
+
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.weight(LABEL_WEIGHT)) {
+            if (label.isNotBlank()) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurface,
+                )
+            }
+            if (type.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    type,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.primary,
+                )
             }
         }
-        model.rows.forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { cell ->
-                    Text(cell, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                }
-            }
-        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            if (value.isBlank()) "—" else value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (value.isBlank()) scheme.onSurfaceVariant else scheme.onSurface,
+            modifier = Modifier.weight(VALUE_WEIGHT),
+        )
     }
 }
+
+private const val LABEL_WEIGHT = 0.40f
+private const val VALUE_WEIGHT = 0.60f

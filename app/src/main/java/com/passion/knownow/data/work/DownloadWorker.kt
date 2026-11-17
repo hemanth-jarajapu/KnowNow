@@ -115,29 +115,42 @@ class DownloadWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                             if (target.exists()) target.delete()
                             null
                         } else {
-                            val content = target.readText()
-                            val (fm, body) = FrontmatterParser.parse(content)
-                            val hash = sha256(body)
-                            val existing = db.documentDao().getByPath(task.publicationId, relative)
+                            val content = runCatching { target.readText() }.getOrNull()
+                            if (content.isNullOrBlank()) {
+                                // Fetch reported success but nothing landed on disk (or the
+                                // response was empty). Registering the page would create a
+                                // document that cannot be opened, so skip it instead.
+                                skipped.incrementAndGet()
+                                runCatching { if (target.exists()) target.delete() }
+                                null
+                            } else {
+                                val (fm, body) = FrontmatterParser.parse(content)
+                                val hash = sha256(body)
+                                val existing = db.documentDao().getByPath(task.publicationId, relative)
 
-                            DocumentEntity(
-                                id = existing?.id ?: 0L,
-                                publicationId = task.publicationId,
-                                title = fm["title"] ?: entry.title.ifBlank { relative.substringBeforeLast('.') },
-                                description = fm["description"] ?: entry.description,
-                                relativePath = relative,
-                                localPath = target.absolutePath,
-                                canonicalUrl = fm["canonical_url"],
-                                lastUpdated = fm["last_updated"],
-                                readingTimeMinutes = fm["reading_time_minutes"]?.toIntOrNull(),
-                                topicType = fm["topic_type"],
-                                sortOrder = index,
-                                contentHash = hash,
-                            )
+                                DocumentEntity(
+                                    id = existing?.id ?: 0L,
+                                    publicationId = task.publicationId,
+                                    title = fm["title"] ?: entry.title.ifBlank { relative.substringBeforeLast('.') },
+                                    description = fm["description"] ?: entry.description,
+                                    relativePath = relative,
+                                    localPath = target.absolutePath,
+                                    canonicalUrl = fm["canonical_url"],
+                                    lastUpdated = fm["last_updated"],
+                                    readingTimeMinutes = fm["reading_time_minutes"]?.toIntOrNull(),
+                                    topicType = fm["topic_type"],
+                                    sortOrder = index,
+                                    contentHash = hash,
+                                )
+                            }
                         }
 
                         val done = completed.incrementAndGet()
-                        taskDao.updateProgress(task.id, total, done, bytes.get())
+                        // Progress writes are throttled: with eight pages in flight these
+                        // used to hammer Room and re-emit the download tray on every page.
+                        if (done == total || done % 4 == 0) {
+                            taskDao.updateProgress(task.id, total, done, bytes.get())
+                        }
                         setProgress(
                             workDataOf(
                                 KEY_PROGRESS to done,

@@ -35,6 +35,10 @@ interface PublicationDao {
     @Query("SELECT * FROM publications WHERE releaseName = :releaseName AND slug = :slug LIMIT 1")
     suspend fun getByReleaseAndSlug(releaseName: String, slug: String): PublicationEntity?
 
+    /** Cross-topic link support: a link names a topicslug, not a release. */
+    @Query("SELECT * FROM publications WHERE slug = :slug ORDER BY downloadedAt DESC LIMIT 1")
+    suspend fun getBySlug(slug: String): PublicationEntity?
+
     @Query("UPDATE publications SET status = :status, downloadedAt = :at, docCount = :count WHERE id = :id")
     suspend fun markReady(id: Long, at: Long, count: Int, status: String = "READY")
 
@@ -59,8 +63,35 @@ interface DocumentDao {
     @Query("SELECT * FROM documents WHERE publicationId = :publicationId AND relativePath = :relativePath LIMIT 1")
     suspend fun getByPath(publicationId: Long, relativePath: String): DocumentEntity?
 
-    @Query("SELECT * FROM documents WHERE title LIKE '%' || :q || '%' ORDER BY title ASC LIMIT 50")
+    @Query(
+        """
+        SELECT * FROM documents
+        WHERE title LIKE '%' || :q || '%'
+           OR IFNULL(description, '') LIKE '%' || :q || '%'
+           OR relativePath LIKE '%' || :q || '%'
+        ORDER BY CASE WHEN title LIKE :q || '%' THEN 0 ELSE 1 END, title ASC
+        LIMIT 100
+        """
+    )
     fun search(q: String): Flow<List<DocumentEntity>>
+
+    /** Cross-topic link support: resolve a topic slug + page path to a local document. */
+    @Query(
+        """
+        SELECT d.* FROM documents d
+        INNER JOIN publications p ON p.id = d.publicationId
+        WHERE p.slug = :slug AND d.relativePath = :relativePath
+        ORDER BY d.id ASC LIMIT 1
+        """
+    )
+    suspend fun findBySlugAndPath(slug: String, relativePath: String): DocumentEntity?
+
+    /** Fallback used when a link points at a page we know by file name only. */
+    @Query("SELECT * FROM documents WHERE relativePath LIKE '%' || :suffix ORDER BY id ASC LIMIT 1")
+    suspend fun findByPathSuffix(suffix: String): DocumentEntity?
+
+    @Query("SELECT * FROM documents WHERE publicationId = :publicationId")
+    suspend fun getAllForPublication(publicationId: Long): List<DocumentEntity>
 
     @Query("SELECT * FROM documents ORDER BY title ASC")
     fun observeAll(): Flow<List<DocumentEntity>>
